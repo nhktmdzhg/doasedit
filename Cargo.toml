@@ -1,0 +1,17 @@
+[package]
+name = "doasedit"
+version = "1.0.0"
+edition = "2021"
+authors = ["Nguyen Hoang Ky <nhktmdzhg at google mail>"]
+description = "A Rust implementation of doasedit - edit files as root using an unprivileged editor"
+license = "MIT"
+keywords = ["doas", "sudo", "editor", "security"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+tempfile = "3.23.0"
+clap = { version = "4.5.53", features = ["derive"] }
+nix = { version = "0.30.1", features = ["process", "user"] }
+libc = "0.2.178"
+anyhow = "1.0.100"
+thiserror = "2.0.17"
