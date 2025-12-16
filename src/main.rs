@@ -4,13 +4,13 @@ mod file_handler;
 mod utils;
 
 use clap::Arg;
-use error::DoaseditError;
+use error::{doas_unavailable, root_user_not_allowed};
 use file_handler::process_file;
 use nix::unistd::geteuid;
 use std::process::Command;
 use tempfile::tempdir;
 
-fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+fn main() {
     let matches = clap::Command::new("doasedit")
         .version("1.0.0")
         .about(
@@ -26,28 +26,54 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     // Check if running as root
     if geteuid().is_root() {
-        return Err(Box::new(DoaseditError::RootUserNotAllowed));
+        eprintln!("doasedit: {}", root_user_not_allowed().to_string());
+        std::process::exit(1);
     }
 
     // Check if doas is available
-    if !Command::new("doas")
+    match Command::new("doas")
         .arg("dd")
         .arg("status=none")
         .arg("count=0")
         .arg("of=/dev/null")
-        .output()?
-        .status
-        .success()
+        .output()
     {
-        return Err(Box::new(DoaseditError::DoasUnavailable));
+        Ok(output) => {
+            if !output.status.success() {
+                eprintln!("doasedit: {}", doas_unavailable().to_string());
+                eprintln!(
+                    "  Command failed with exit code: {:?}",
+                    output.status.code()
+                );
+                if !output.stderr.is_empty() {
+                    eprintln!("  stderr: {}", String::from_utf8_lossy(&output.stderr));
+                }
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("doasedit: Error running 'doas' command: {}", e);
+            std::process::exit(1);
+        }
     }
 
     // Determine editor command
-    let editor =
-        editor::get_editor_command().map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+    let editor = match editor::get_editor_command() {
+        Ok(editor) => editor,
+        Err(e) => {
+            eprintln!("doasedit: Error getting editor command: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     // Create temporary directory
-    let tmp_dir = tempdir()?;
+    let tmp_dir = match tempdir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            eprintln!("doasedit: Error creating temporary directory: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     let mut _exit_code = 1;
 
@@ -58,12 +84,10 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     _exit_code = 0;
                 }
                 Err(e) => {
-                    eprintln!("doasedit: {}", e);
-                    continue;
+                    eprintln!("doasedit: {}", e.to_string());
+                    std::process::exit(1);
                 }
             }
         }
     }
-
-    Ok(())
 }

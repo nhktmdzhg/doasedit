@@ -1,4 +1,7 @@
-use crate::error::{DoaseditError, Result};
+use crate::error::{
+    doas_cat_permission_denied, doas_unavailable, doas_validation_error, interrupted,
+    invalid_editor, Result,
+};
 use nix::unistd::getuid;
 use std::fs;
 use std::io::{self, Write};
@@ -62,10 +65,10 @@ pub fn get_file_metadata_with_doas(file_path: &Path) -> Result<(u32, u32)> {
         .arg("%u %a")
         .arg(file_path)
         .output()
-        .map_err(|_| DoaseditError::DoasUnavailable)?;
+        .map_err(|_| doas_unavailable())?;
 
     if !output.status.success() {
-        return Err(DoaseditError::DoasCatPermissionDenied);
+        return Err(doas_cat_permission_denied());
     }
 
     let output_str = String::from_utf8_lossy(&output.stdout);
@@ -74,14 +77,12 @@ pub fn get_file_metadata_with_doas(file_path: &Path) -> Result<(u32, u32)> {
     if parts.len() >= 2 {
         let uid = parts[0]
             .parse()
-            .map_err(|_| DoaseditError::DoasValidationError("Invalid UID format".to_string()))?;
+            .map_err(|_| doas_validation_error("Invalid UID format"))?;
         let mode = u32::from_str_radix(parts[1], 8).unwrap_or(0o644);
 
         Ok((uid, mode))
     } else {
-        Err(DoaseditError::DoasValidationError(
-            "Invalid stat output".to_string(),
-        ))
+        Err(doas_validation_error("Invalid stat output"))
     }
 }
 
@@ -98,14 +99,12 @@ pub fn get_parent_directory(file_path: &Path) -> PathBuf {
 /// Read user input from stdin
 pub fn read_user_input(prompt: &str) -> Result<String> {
     eprint!("{}", prompt);
-    io::stdout()
-        .flush()
-        .map_err(|_| DoaseditError::Interrupted)?;
+    io::stdout().flush().map_err(|_| interrupted())?;
 
     let mut input = String::new();
     io::stdin()
         .read_line(&mut input)
-        .map_err(|_| DoaseditError::Interrupted)?;
+        .map_err(|_| interrupted())?;
 
     Ok(input)
 }
@@ -129,7 +128,7 @@ pub fn get_filename(path: &Path) -> Result<String> {
     path.file_name()
         .and_then(|name| name.to_str())
         .map(|s| s.to_string())
-        .ok_or_else(|| DoaseditError::InvalidEditor("Invalid file path".to_string()).into())
+        .ok_or_else(|| invalid_editor("Invalid file path"))
 }
 
 /// Create a safe filename for the copy

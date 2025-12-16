@@ -14,4 +14,3 @@ clap = { version = "4.5.53", features = ["derive"] }
 nix = { version = "0.30.1", features = ["process", "user"] }
 libc = "0.2.178"
 anyhow = "1.0.100"
-thiserror = "2.0.17"

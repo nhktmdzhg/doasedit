@@ -1,4 +1,7 @@
-use crate::error::{DoaseditError, Result};
+use crate::error::{
+    doas_cat_permission_denied, doas_unavailable, editor_error, invalid_editor,
+    no_editor_specified, user_abort, Result,
+};
 use crate::utils::{create_copy_filename, get_filename, read_user_input};
 use std::env;
 use std::fs;
@@ -23,7 +26,7 @@ pub fn get_editor_command() -> Result<String> {
                 {
                     return Ok(val);
                 } else {
-                    return Err(DoaseditError::InvalidEditor(val).into());
+                    return Err(invalid_editor(&val));
                 }
             }
         }
@@ -40,7 +43,7 @@ pub fn get_editor_command() -> Result<String> {
         return Ok("vi".to_string());
     }
 
-    Err(DoaseditError::NoEditorSpecified.into())
+    Err(no_editor_specified())
 }
 
 /// Open a file with the specified editor
@@ -48,12 +51,12 @@ pub fn open_file_with_editor(file_path: &Path, editor: &str) -> Result<()> {
     let status = Command::new(editor)
         .arg(file_path)
         .status()
-        .map_err(|e| DoaseditError::InvalidEditor(e.to_string()))?;
+        .map_err(|e| invalid_editor(&e.to_string()))?;
 
     if status.success() {
         Ok(())
     } else {
-        Err(DoaseditError::EditorError)
+        Err(editor_error())
     }
 }
 
@@ -64,7 +67,7 @@ pub fn validate_doas_config(tmp_file_path: &Path, editor_cmd: &str) -> Result<()
             .arg("-C")
             .arg(tmp_file_path)
             .output()
-            .map_err(|_| DoaseditError::DoasUnavailable)?;
+            .map_err(|_| doas_unavailable())?;
 
         if output.status.success() {
             break;
@@ -79,7 +82,7 @@ pub fn validate_doas_config(tmp_file_path: &Path, editor_cmd: &str) -> Result<()
 
         match input.trim().to_lowercase().as_str() {
             "o" => break,
-            "a" => return Err(DoaseditError::UserAbort),
+            "a" => return Err(user_abort()),
             _ => {
                 open_file_with_editor(tmp_file_path, editor_cmd)?;
             }
@@ -125,10 +128,10 @@ pub fn copy_original_content(
             .arg("cat")
             .arg(original_path)
             .output()
-            .map_err(|_| DoaseditError::DoasCatPermissionDenied)?;
+            .map_err(|_| doas_cat_permission_denied())?;
 
         if !output.status.success() {
-            return Err(DoaseditError::DoasCatPermissionDenied);
+            return Err(doas_cat_permission_denied());
         }
 
         fs::write(temp_file_path, output.stdout)?;

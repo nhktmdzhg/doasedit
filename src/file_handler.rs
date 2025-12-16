@@ -1,4 +1,8 @@
-use crate::error::{DoaseditError, Result};
+use crate::error::{
+    cannot_create_file_in_own_dir, cannot_create_file_in_writable_dir, cannot_edit_directory,
+    cannot_edit_own_file, cannot_edit_readable_writable_file, doas_unavailable,
+    no_directory_exists, not_regular_file, three_incorrect_password_attempts, Result,
+};
 use crate::utils::{
     files_match, get_file_metadata_with_doas, get_filename, get_parent_directory,
     is_dir_owned_by_user, is_dir_writable_by_user, is_directory_path, is_doas_config_file,
@@ -58,7 +62,7 @@ pub fn check_file_status(path: &Path) -> Result<FileInfo> {
         .arg("-e")
         .arg(path)
         .output()
-        .map_err(|_| DoaseditError::DoasUnavailable)?;
+        .map_err(|_| doas_unavailable())?;
 
     if check_existence.status.success() {
         let check_is_file = Command::new("doas")
@@ -66,7 +70,7 @@ pub fn check_file_status(path: &Path) -> Result<FileInfo> {
             .arg("-f")
             .arg(path)
             .output()
-            .map_err(|_| DoaseditError::DoasUnavailable)?;
+            .map_err(|_| doas_unavailable())?;
 
         if !check_is_file.status.success() {
             return Ok(FileInfo {
@@ -98,14 +102,12 @@ pub fn check_file_status(path: &Path) -> Result<FileInfo> {
     if dir_path.exists() {
         // Check if directory is owned by user
         if is_dir_owned_by_user(&dir_path)? {
-            return Err(DoaseditError::CannotCreateFileInOwnDir(path.display().to_string()).into());
+            return Err(cannot_create_file_in_own_dir(&path.display().to_string()).into());
         }
 
         // Check if directory is writable by user
         if is_dir_writable_by_user(&dir_path)? {
-            return Err(
-                DoaseditError::CannotCreateFileInWritableDir(path.display().to_string()).into(),
-            );
+            return Err(cannot_create_file_in_writable_dir(&path.display().to_string()).into());
         }
     } else {
         // Try with doas
@@ -114,10 +116,10 @@ pub fn check_file_status(path: &Path) -> Result<FileInfo> {
             .arg("-d")
             .arg(&dir_path)
             .output()
-            .map_err(|_| DoaseditError::DoasUnavailable)?;
+            .map_err(|_| doas_unavailable())?;
 
         if !check_dir_existence.status.success() {
-            return Err(DoaseditError::NoDirectoryExists(dir_path.display().to_string()).into());
+            return Err(no_directory_exists(&dir_path.display().to_string()).into());
         }
     }
 
@@ -139,7 +141,7 @@ pub fn process_file(file_path: &str, editor: &str, tmp_dir: &Path) -> Result<()>
 
     // Check if path is a directory (ends with /)
     if is_directory_path(file_path) {
-        return Err(DoaseditError::CannotEditDirectory(file_path.to_string()).into());
+        return Err(cannot_edit_directory(file_path).into());
     }
 
     let path = Path::new(file_path);
@@ -155,19 +157,17 @@ pub fn process_file(file_path: &str, editor: &str, tmp_dir: &Path) -> Result<()>
     if file_info.exists {
         // Check if user is not the owner of the file
         if file_info.is_owned_by_user {
-            return Err(DoaseditError::CannotEditOwnFile(file_path.to_string()).into());
+            return Err(cannot_edit_own_file(file_path).into());
         }
 
         // Check if file is not a directory
         if file_info.is_directory {
-            return Err(DoaseditError::NotRegularFile(file_path.to_string()).into());
+            return Err(not_regular_file(file_path).into());
         }
 
         // Check if file is not both readable and writable by user
         if file_info.readable && file_info.writable {
-            return Err(
-                DoaseditError::CannotEditReadableWritableFile(file_path.to_string()).into(),
-            );
+            return Err(cannot_edit_readable_writable_file(file_path).into());
         }
 
         let use_doas = !file_info.readable;
@@ -209,7 +209,7 @@ pub fn write_file_back(tmp_file_path: &Path, original_path: &Path, writable: boo
                 .arg(format!("if={}", tmp_file_path.display()))
                 .arg(format!("of={}", original_path.display()))
                 .output()
-                .map_err(|_| DoaseditError::DoasUnavailable)?;
+                .map_err(|_| doas_unavailable())?;
 
             if output.status.success() {
                 success = true;
@@ -218,12 +218,12 @@ pub fn write_file_back(tmp_file_path: &Path, original_path: &Path, writable: boo
 
             // If this is the third attempt, return error
             if attempt == 2 {
-                return Err(DoaseditError::ThreeIncorrectPasswordAttempts);
+                return Err(three_incorrect_password_attempts());
             }
         }
 
         if !success {
-            return Err(DoaseditError::ThreeIncorrectPasswordAttempts);
+            return Err(three_incorrect_password_attempts());
         }
     }
 
