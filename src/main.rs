@@ -12,7 +12,7 @@ use tempfile::tempdir;
 
 fn main() {
     let matches = clap::Command::new("doasedit")
-        .version("1.0.0")
+        .version(env!("CARGO_PKG_VERSION"))
         .about(
             "A Rust implementation of doasedit - edit files as root using an unprivileged editor",
         )
