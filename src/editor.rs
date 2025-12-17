@@ -17,8 +17,8 @@ pub fn get_editor_command() -> Result<String> {
         if let Ok(val) = env::var(var) {
             if !val.is_empty() {
                 // Check if command exists
-                if Command::new(&val)
-                    .arg("--version")
+                if Command::new("which")
+                    .arg(&val)
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .status()
@@ -26,15 +26,15 @@ pub fn get_editor_command() -> Result<String> {
                 {
                     return Ok(val);
                 } else {
-                    return Err(invalid_editor(&val));
+                    return Err(no_editor_specified());
                 }
             }
         }
     }
 
     // Default to vi if available
-    if Command::new("vi")
-        .arg("--version")
+    if Command::new("which")
+        .arg("vi")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()

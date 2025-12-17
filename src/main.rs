@@ -31,28 +31,10 @@ fn main() {
     }
 
     // Check if doas is available
-    match Command::new("doas")
-        .arg("dd")
-        .arg("status=none")
-        .arg("count=0")
-        .arg("of=/dev/null")
-        .output()
-    {
-        Ok(output) => {
-            if !output.status.success() {
-                eprintln!("doasedit: {}", doas_unavailable().to_string());
-                eprintln!(
-                    "  Command failed with exit code: {:?}",
-                    output.status.code()
-                );
-                if !output.stderr.is_empty() {
-                    eprintln!("  stderr: {}", String::from_utf8_lossy(&output.stderr));
-                }
-                std::process::exit(1);
-            }
-        }
-        Err(e) => {
-            eprintln!("doasedit: Error running 'doas' command: {}", e);
+    match Command::new("which").arg("doas").output() {
+        Ok(output) if output.status.success() => {}
+        _ => {
+            eprintln!("doasedit: {}", doas_unavailable().to_string());
             std::process::exit(1);
         }
     }
@@ -61,7 +43,7 @@ fn main() {
     let editor = match editor::get_editor_command() {
         Ok(editor) => editor,
         Err(e) => {
-            eprintln!("doasedit: Error getting editor command: {}", e);
+            eprintln!("doasedit: {}", e);
             std::process::exit(1);
         }
     };
